@@ -5,13 +5,17 @@ import { getInstallationToken } from "./app";
 const WORKFLOW_PATH = ".github/workflows/deploy-njin.yml";
 const SECRET_NAME = "NJIN_DEPLOY_TOKEN";
 
-// One repo = one client = one hardcoded slug baked into its own workflow file — no runtime
-// parameterization needed, so nothing here depends on any per-run input beyond the slug.
-export const renderDeployWorkflow = (slug: string): string => `# Managed by njin-supervisor — do not edit by hand, changes will be overwritten on reconnect.
+// One repo = one client = one hardcoded slug + branch baked into its own workflow file — no
+// runtime parameterization needed. Note: the branch name is substituted literally here, NOT via
+// GitHub's "$default-branch" token — that placeholder only gets replaced by GitHub's own starter
+// workflow *template* UI (workflow-templates/*.yml + properties.json), never for a file committed
+// directly via the Contents API like this one. Using it literally would commit a workflow whose
+// push trigger matches a branch that doesn't exist, so it would silently never run on any push.
+export const renderDeployWorkflow = (slug: string, defaultBranch: string): string => `# Managed by njin-supervisor — do not edit by hand, changes will be overwritten on reconnect.
 name: Deploy to njin
 on:
   push:
-    branches: [ "$default-branch" ]
+    branches: [ "${defaultBranch}" ]
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -56,7 +60,7 @@ export const commitWorkflowFile = async (
     headers: { ...githubApiHeaders(token), "content-type": "application/json" },
     body: JSON.stringify({
       message: existingSha ? "Update njin deploy workflow" : "Add njin deploy workflow",
-      content: Buffer.from(renderDeployWorkflow(slug)).toString("base64"),
+      content: Buffer.from(renderDeployWorkflow(slug, defaultBranch)).toString("base64"),
       branch: defaultBranch,
       ...(existingSha ? { sha: existingSha } : {}),
     }),
