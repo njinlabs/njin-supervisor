@@ -84,13 +84,22 @@ export const handleDashboardRequest = async (
     try {
       const tarBytes = await request.arrayBuffer();
       await materializeBuild(slug, tarBytes);
-      await deps.redeployWorker(slug);
     } catch (error) {
       updateDeployStatus(deploy.id, "failed", error instanceof Error ? error.message : String(error));
       return new Response("Bad Gateway", { status: 502 });
     }
 
-    updateDeployStatus(deploy.id, "success");
+    // Extraction succeeding is what the caller (a `curl` step in the tenant's own CI run) cares
+    // about — respond now instead of also blocking on the worker hot-swap, which can legitimately
+    // take up to BOOT_TIMEOUT_MS and would otherwise make the CI step hang, or fail outright if
+    // the new worker is merely slow rather than actually broken. The swap still happens right
+    // after, just without the HTTP response waiting on it; its real outcome updates this same
+    // deploy row (visible in the dashboard's "Deploys" dialog) instead of being reported here.
+    void deps
+      .redeployWorker(slug)
+      .then(() => updateDeployStatus(deploy.id, "success"))
+      .catch((error) => updateDeployStatus(deploy.id, "failed", error instanceof Error ? error.message : String(error)));
+
     return Response.json({ slug });
   }
 
