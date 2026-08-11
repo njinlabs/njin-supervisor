@@ -1,8 +1,9 @@
 {
 	# Required for on_demand_tls: Caddy calls this before issuing/renewing a cert for any
 	# hostname it doesn't already have static config for, and only proceeds on a 200 — see
-	# GET /api/internal/tls-ask in src/supervisor/supervisor.ts. Reachable on any Host, since
-	# Caddy calls it over loopback with its own Host header, not the tenant's.
+	# GET /api/internal/tls-ask in src/supervisor/supervisor.ts. That endpoint only responds on
+	# Host localhost/127.0.0.1 (exactly what this "ask" URL sends), specifically so the same path
+	# under a tenant's own domain reaches their app instead of being shadowed by this check.
 	on_demand_tls {
 		ask http://localhost:11005/api/internal/tls-ask
 	}
@@ -18,8 +19,9 @@
 	reverse_proxy localhost:11005
 }
 
-# HTTP is proxied too (not redirected) so the supervisor's own IDLE_TIMEOUT_SECONDS-vs-worker-boot
-# handling stays in charge of what a slow/broken client sees, same as plain HTTP dev use.
+# Plain HTTP just redirects to HTTPS — Caddy still auto-handles the ACME HTTP-01 challenge path
+# on :80 ahead of this (part of automatic HTTPS, not something this redir can shadow), so
+# on_demand_tls above keeps working even though nothing here proxies to the supervisor directly.
 :80 {
-	reverse_proxy localhost:11005
+	redir https://{host}{uri} permanent
 }

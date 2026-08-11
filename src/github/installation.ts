@@ -19,7 +19,10 @@ export const listInstallations = async (): Promise<GithubInstallation[]> => {
 export type GithubRepo = { id: number; fullName: string; private: boolean; defaultBranch: string };
 
 export const listRepositoriesForInstallation = async (installationId: number): Promise<GithubRepo[]> => {
-  const token = await getInstallationToken(installationId);
+  // forceRefresh: a cached token's repo access is snapshotted at mint time — without this, a
+  // repo added to the installation after the last cached token was issued wouldn't show up here
+  // for up to an hour. See the comment on getInstallationToken in github/app.ts.
+  const token = await getInstallationToken(installationId, { forceRefresh: true });
   const res = await fetch("https://api.github.com/installation/repositories?per_page=100", {
     headers: {
       authorization: `Bearer ${token}`,

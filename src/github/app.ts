@@ -30,9 +30,15 @@ const installationTokenCache = new Map<number, CachedToken>();
 // token that expires mid-call.
 const TOKEN_REFRESH_SKEW_MS = 60_000;
 
-export const getInstallationToken = async (installationId: number): Promise<string> => {
+// forceRefresh bypasses the cache — an installation token's repository access is fixed at the
+// moment it's minted, not re-evaluated live per-request, so a token cached from before a repo was
+// added to the installation would keep "hiding" that repo from GET /installation/repositories
+// for up to an hour otherwise. Only the repo-listing call (where staleness is directly visible to
+// the admin picking a repo) needs this; the more frequent workflow-commit/secret-set calls during
+// actual client creation are fine reusing a token that's at most a few minutes old.
+export const getInstallationToken = async (installationId: number, opts: { forceRefresh?: boolean } = {}): Promise<string> => {
   const cached = installationTokenCache.get(installationId);
-  if (cached && cached.expiresAtMs - TOKEN_REFRESH_SKEW_MS > Date.now()) return cached.token;
+  if (!opts.forceRefresh && cached && cached.expiresAtMs - TOKEN_REFRESH_SKEW_MS > Date.now()) return cached.token;
 
   const res = await fetch(`https://api.github.com/app/installations/${installationId}/access_tokens`, {
     method: "POST",
