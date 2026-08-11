@@ -51,12 +51,15 @@ The entrypoint is `src/index.ts`. On boot it:
 
 ## Dashboard
 
-Set `DASHBOARD_HOST`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` in `.env`, build the SPA once
-(`bun run dashboard:build`), then `bun run start`/`bun run dev` as usual — visiting
-`DASHBOARD_HOST` now serves a login page, and the seeded admin can sign in to see a read-only list
-of every registered client and its domains. `bun run dashboard:dev` runs the SPA under Vite's own
-dev server separately, for frontend-only iteration. See **M2** in the Roadmap below for what this
-covers today (read-only) versus what M3+ adds (managing clients/env/deploys from here).
+Set `DASHBOARD_HOST`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` in `.env`, then `bun run start`/`bun run dev`
+as usual — `dashboard-ui/dist` is committed to this repo (unlike a typical Vite project, it is
+**not** gitignored), so a server that only ever runs `bun install && bun run start` still gets a
+working dashboard with no separate build step. Run `bun run dashboard:build` yourself only when
+you've changed something under `dashboard-ui/src` — commit the resulting `dashboard-ui/dist` diff
+alongside your source change. `bun run dashboard:dev` runs the SPA under Vite's own dev server
+separately, for frontend-only iteration. Visiting `DASHBOARD_HOST` serves a login page, and the
+seeded admin can sign in to manage clients (GitHub-connected onboarding, domains, env vars, deploy
+history) — see **Dashboard** in `CLAUDE.md` for the full feature set.
 
 ## Multidomain support
 

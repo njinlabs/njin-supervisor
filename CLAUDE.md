@@ -133,6 +133,9 @@ without ever being a `domains` row.
   exact-asset-match-else-`index.html` SPA fallback. Per-client actions live behind small dialogs
   on the flat client list rather than a routed detail page (`AddDomainDialog`, `EnvDialog`,
   `DeployHistoryDialog`), consistent with the no-router approach.
+  `dashboard-ui/dist` is **committed** (deliberately un-gitignored, unlike a typical Vite
+  project) so a deploy target that never runs `bun run dashboard:build` still serves a working
+  dashboard — rebuild and commit it yourself whenever `dashboard-ui/src` changes.
 
 **Client creation is GitHub-only** — there is no manual slug/domain form in the dashboard. See
 **GitHub integration & deploy** below for the full connect → register → deploy pipeline.

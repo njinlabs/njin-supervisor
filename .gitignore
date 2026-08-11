@@ -6,8 +6,11 @@ data
 
 # output
 out
-dist
 *.tgz
+
+# dashboard-ui/dist is deliberately NOT ignored — it's committed so a server that only ever runs
+# `bun run start` (never `bun run dashboard:build`) still has a working dashboard. Rebuild it
+# locally and commit the diff whenever dashboard-ui/src changes.
 
 # code coverage
 coverage
