@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodically check njin-supervisor.service memory usage
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Unit=njin-supervisor-memcheck.service
+
+[Install]
+WantedBy=timers.target

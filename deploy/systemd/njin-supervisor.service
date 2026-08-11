@@ -1,0 +1,33 @@
+[Unit]
+Description=njin-supervisor (multi-tenant HTTP supervisor)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/njin-supervisor
+ExecStart=/usr/bin/bun run src/index.ts
+Restart=on-failure
+RestartSec=2
+
+# SIGTERM is what supervisor.ts's shutdown() handler listens for — it stops accepting new
+# connections, broadcasts {type:"shutdown"} to every worker, then sleeps 10.5s to let in-flight
+# requests drain (see the SHUTDOWN_DRAIN_TIMEOUT_MS-bounded worker-side drain in the njin sibling
+# repo). TimeoutStopSec must clear that 10.5s with margin, or systemd escalates to SIGKILL before
+# the drain finishes.
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+# Hard safety net only — if MemoryMax is ever hit, the kernel cgroup OOM killer SIGKILLs
+# immediately (no graceful drain, unlike a normal `systemctl restart`). This should sit well
+# above njin-supervisor-memcheck.timer's threshold below, so the checker restarts gracefully
+# long before this ever fires. Adjust to your host's actual capacity.
+MemoryMax=2G
+
+# See CLAUDE.md's "No idle eviction by design" note: workers are never terminated for being
+# idle, and worker.terminate() (used on delete/redeploy) has a known Bun memory-leak
+# (https://github.com/oven-sh/bun/issues/5709) — RAM only trends up over the process's lifetime.
+# njin-supervisor-memcheck.timer below restarts this service proactively before that becomes a
+# problem, rather than waiting for MemoryMax to force an ungraceful kill.
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,25 @@
+{
+	# Required for on_demand_tls: Caddy calls this before issuing/renewing a cert for any
+	# hostname it doesn't already have static config for, and only proceeds on a 200 — see
+	# GET /api/internal/tls-ask in src/supervisor/supervisor.ts. Reachable on any Host, since
+	# Caddy calls it over loopback with its own Host header, not the tenant's.
+	on_demand_tls {
+		ask http://localhost:11005/api/internal/tls-ask
+	}
+}
+
+# Wildcard site block: matches every hostname (SNI) that isn't claimed by a more specific block
+# below. `tls { on_demand }` is explicit here rather than relying on Caddy's implicit behavior for
+# host-less addresses, since that's changed across Caddy versions — safer to state it directly.
+:443 {
+	tls {
+		on_demand
+	}
+	reverse_proxy localhost:11005
+}
+
+# HTTP is proxied too (not redirected) so the supervisor's own IDLE_TIMEOUT_SECONDS-vs-worker-boot
+# handling stays in charge of what a slow/broken client sees, same as plain HTTP dev use.
+:80 {
+	reverse_proxy localhost:11005
+}

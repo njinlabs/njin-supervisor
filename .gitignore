@@ -1,0 +1,41 @@
+# dependencies (bun install)
+node_modules
+
+# control-plane SQLite DB
+data
+
+# output
+out
+dist
+*.tgz
+
+# code coverage
+coverage
+*.lcov
+
+# logs
+logs
+_.log
+report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# GitHub App private keys (downloaded .pem) — the base64 form already lives in .env's
+# GH_APP_PRIVATE_KEY; the raw file should never be committed
+*.pem
+
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo
+
+# IntelliJ based IDEs
+.idea
+
+# Finder (MacOS) folder config
+.DS_Store

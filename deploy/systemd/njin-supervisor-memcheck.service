@@ -1,0 +1,7 @@
+[Unit]
+Description=Restart njin-supervisor.service if its memory usage crosses the configured threshold
+After=njin-supervisor.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/njin-supervisor/deploy/systemd/njin-supervisor-memcheck.sh

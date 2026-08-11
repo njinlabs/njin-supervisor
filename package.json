@@ -1,0 +1,26 @@
+{
+  "name": "njin-supervisor",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "dashboard:build": "cd dashboard-ui && bun install && bun run build",
+    "dashboard:dev": "cd dashboard-ui && bun run dev"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/libsodium-wrappers": "^0.8.2"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@njinlabs/njin": "^0.6.0",
+    "@surrealdb/node": "^3.0.3",
+    "geoip-lite": "^2.0.3",
+    "libsodium-wrappers": "^0.8.4",
+    "zod": "^4.4.3"
+  }
+}
