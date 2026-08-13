@@ -35,10 +35,9 @@ sub vcl_recv {
         return (synth(200, "Banned"));
     }
 
-    # TODO: replace with the real DASHBOARD_HOST value from this deployment's .env before
-    # installing. Dashboard login/session/client-management/deploy-upload traffic all lives
-    # under this one host (see CLAUDE.md's Dashboard section) — never cache any of it.
-    if (req.http.host == "REPLACE_WITH_DASHBOARD_HOST") {
+    # DASHBOARD_HOST — dashboard login/session/client-management/deploy-upload traffic all
+    # lives under this one host (see CLAUDE.md's Dashboard section) — never cache any of it.
+    if (req.http.host == "supervisor.jadiweb.id") {
         return (pass);
     }
 
@@ -77,5 +76,9 @@ sub vcl_backend_response {
 }
 
 sub vcl_deliver {
-    set resp.http.X-Cache = obj.hits > 0 ? "HIT" : "MISS";
+    if (obj.hits > 0) {
+        set resp.http.X-Cache = "HIT";
+    } else {
+        set resp.http.X-Cache = "MISS";
+    }
 }
