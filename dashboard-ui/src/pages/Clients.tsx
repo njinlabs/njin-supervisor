@@ -287,7 +287,12 @@ export const Clients = ({ onUnauthorized }: { onUnauthorized: () => void }) => {
         onUnauthorized={onUnauthorized}
       />
 
-      <EnvDialog slug={envSlug} onClose={() => setEnvSlug(null)} onUnauthorized={onUnauthorized} />
+      <EnvDialog
+        slug={envSlug}
+        otherSlugs={(clients ?? []).map((c) => c.slug).filter((s) => s !== envSlug)}
+        onClose={() => setEnvSlug(null)}
+        onUnauthorized={onUnauthorized}
+      />
     </div>
   );
 };

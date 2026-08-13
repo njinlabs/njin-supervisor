@@ -402,6 +402,8 @@ tbody tr:hover {
 .dialog {
   width: 100%;
   max-width: 420px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -418,6 +420,25 @@ tbody tr:hover {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.8125rem;
   word-break: break-all;
+}
+
+.env-copy-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.env-copy-row .field {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.env-copy-row .btn {
+  width: auto;
+  flex-shrink: 0;
 }
 
 .env-form {

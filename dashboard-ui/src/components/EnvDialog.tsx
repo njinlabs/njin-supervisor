@@ -3,11 +3,12 @@ import { deleteEnv, listEnv, setEnv, UnauthorizedError, type EnvVar } from "../a
 
 export type EnvDialogProps = {
   slug: string | null;
+  otherSlugs: string[];
   onClose: () => void;
   onUnauthorized: () => void;
 };
 
-export const EnvDialog = ({ slug, onClose, onUnauthorized }: EnvDialogProps) => {
+export const EnvDialog = ({ slug, otherSlugs, onClose, onUnauthorized }: EnvDialogProps) => {
   const [vars, setVars] = useState<EnvVar[] | null>(null);
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [key, setKey] = useState("");
@@ -15,6 +16,9 @@ export const EnvDialog = ({ slug, onClose, onUnauthorized }: EnvDialogProps) => 
   const [busy, setBusy] = useState(false);
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copySource, setCopySource] = useState("");
+  const [copying, setCopying] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = (currentSlug: string) =>
     listEnv(currentSlug)
@@ -31,11 +35,33 @@ export const EnvDialog = ({ slug, onClose, onUnauthorized }: EnvDialogProps) => 
     setKey("");
     setValue("");
     setError(null);
+    setNotice(null);
+    setCopySource("");
     load(slug);
     // eslint-disable-next-line
   }, [slug]);
 
   if (!slug) return null;
+
+  const handleCopy = async () => {
+    if (!copySource) return;
+    setCopying(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const sourceVars = await listEnv(copySource);
+      for (const v of sourceVars) {
+        await setEnv(slug, v.key, v.value);
+      }
+      await load(slug);
+      setNotice(`Copied ${sourceVars.length} var${sourceVars.length === 1 ? "" : "s"} from "${copySource}".`);
+    } catch (err) {
+      if (err instanceof UnauthorizedError) onUnauthorized();
+      else setError(`Failed to copy env vars from "${copySource}".`);
+    } finally {
+      setCopying(false);
+    }
+  };
 
   const toggleReveal = (k: string) =>
     setRevealed((prev) => {
@@ -86,6 +112,35 @@ export const EnvDialog = ({ slug, onClose, onUnauthorized }: EnvDialogProps) => 
         </p>
 
         {error && <div class="alert" role="alert">{error}</div>}
+        {notice && <div class="alert alert-notice" role="status">{notice}</div>}
+
+        {otherSlugs.length > 0 && (
+          <div class="env-copy-row">
+            <div class="field">
+              <label for="env-copy-source">Copy env from</label>
+              <select
+                id="env-copy-source"
+                value={copySource}
+                onChange={(e) => setCopySource((e.target as HTMLSelectElement).value)}
+              >
+                <option value="">Select a client…</option>
+                {otherSlugs.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              class="btn btn-secondary"
+              type="button"
+              disabled={!copySource || copying}
+              onClick={handleCopy}
+            >
+              {copying ? "Copying…" : "Copy"}
+            </button>
+          </div>
+        )}
 
         {!vars && !error && <p class="loading-state">Loading…</p>}
 
