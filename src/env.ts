@@ -22,6 +22,11 @@ const schema = z
     // the dashboard routing branch entirely (see supervisor.ts), letting the supervisor boot with
     // dashboard support off.
     DASHBOARD_HOST: z.string().optional(),
+    // Base URL of the Varnish cache in front of this process (see deploy/varnish/) — optional,
+    // Varnish isn't required to run the supervisor. When set, redeployWorker() bans that
+    // tenant's cached objects right after a successful hot-swap so a stale build never lingers
+    // in cache past a deploy. Unset -> that ban call is just skipped.
+    VARNISH_URL: z.string().optional(),
     ADMIN_EMAIL: z.string().email().optional(),
     ADMIN_PASSWORD: z.string().min(8).optional(),
     // Bun.serve here has no TLS config — production deployments sit behind a TLS-terminating

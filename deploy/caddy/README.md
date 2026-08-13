@@ -15,8 +15,11 @@ so pointing a random domain's DNS at this server's IP does **not** get it a free
 
 ```bash
 sudo cp deploy/caddy/Caddyfile /etc/caddy/Caddyfile
-# Adjust the `ask` URL and both `reverse_proxy` targets if the supervisor isn't on localhost:11005
-# (PORT in .env) — this assumes Caddy and the supervisor run on the same host.
+# Adjust the `ask` URL if the supervisor isn't on localhost:11005 (PORT in .env) — this assumes
+# Caddy and the supervisor run on the same host. The `reverse_proxy` target (localhost:6081)
+# points at Varnish, not the supervisor directly — see deploy/varnish/README.md; adjust it only
+# if Varnish listens somewhere other than :6081, or drop straight to :11005 if not running
+# Varnish at all.
 sudo systemctl reload caddy
 ```
 
@@ -27,7 +30,8 @@ sudo systemctl reload caddy
   sensitive data. Keep it reachable only from Caddy itself (same host via `localhost`, as in the
   template) rather than exposing it on a public interface, to avoid letting an outsider enumerate
   which domains are registered.
-- If running both `njin-supervisor.service` (see `deploy/systemd/`) and Caddy on the same host,
-  Caddy owns ports 80/443 and proxies to the supervisor's own `PORT` (default `11005`) — the
-  supervisor itself has no TLS config of its own (see `DASHBOARD_COOKIE_SECURE`'s comment in
-  `src/env.ts`: it assumes it always sits behind a TLS-terminating proxy in production).
+- If running `njin-supervisor.service` (see `deploy/systemd/`), Varnish (see `deploy/varnish/`),
+  and Caddy on the same host, Caddy owns ports 80/443 and proxies to Varnish, which in turn
+  proxies to the supervisor's own `PORT` (default `11005`) as its one backend — the supervisor
+  itself has no TLS config of its own (see `DASHBOARD_COOKIE_SECURE`'s comment in `src/env.ts`: it
+  assumes it always sits behind a TLS-terminating proxy in production).

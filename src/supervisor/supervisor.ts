@@ -7,6 +7,7 @@ import type {
 
 import { join } from "node:path";
 import { env } from "../env";
+import { findClientBySlug } from "../db/repositories/clients";
 import { findDomainByHost, findPrimaryHostForClient } from "../db/repositories/domains";
 import { getEnvForSlug } from "../db/repositories/env";
 import { handleDashboardRequest } from "../dashboard/router";
@@ -207,6 +208,26 @@ export const startSupervisor = ({ port }: SupervisorOptions) => {
   };
   const idleEvictInterval = setInterval(idleEvictSweep, IDLE_EVICT_CHECK_INTERVAL_MS);
 
+  // Fire-and-forget: wipes a tenant's cached objects in Varnish (deploy/varnish/) via the
+  // custom BAN method that VCL restricts to localhost. Never awaited by callers — a slow or
+  // unreachable Varnish must not hold up the deploy response any more than the worker hot-swap
+  // itself does (see redeployWorker below). Missing VARNISH_URL, an unregistered slug, or a
+  // network error are all just logged and swallowed: worst case is a stale cache entry that
+  // still expires on its own TTL, not a failed deploy.
+  const purgeVarnishCache = async (slug: string): Promise<void> => {
+    if (!env.VARNISH_URL) return;
+    const client = findClientBySlug(slug);
+    const host = client ? findPrimaryHostForClient(client.id) : null;
+    if (!host) return;
+
+    try {
+      const res = await fetch(env.VARNISH_URL, { method: "BAN", headers: { Host: host } });
+      if (!res.ok) console.error(`Varnish ban for ${host} returned ${res.status}`);
+    } catch (error) {
+      console.error(`Varnish ban for ${host} failed`, error);
+    }
+  };
+
   // For POST /api/deploy/:slug once a new build has been materialized into clients/<slug>/ —
   // spawns a fresh worker against the new build and only swaps it into `workers` (the map every
   // dispatch() call reads from) once it's actually reached "ready". If the new worker never gets
@@ -230,6 +251,8 @@ export const startSupervisor = ({ port }: SupervisorOptions) => {
       old.worker.postMessage({ type: "shutdown" });
       setTimeout(() => old.worker.terminate(), 10_500);
     }
+
+    void purgeVarnishCache(slug);
   };
 
   const dispatch = async (

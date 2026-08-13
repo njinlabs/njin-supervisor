@@ -12,11 +12,15 @@
 # Wildcard site block: matches every hostname (SNI) that isn't claimed by a more specific block
 # below. `tls { on_demand }` is explicit here rather than relying on Caddy's implicit behavior for
 # host-less addresses, since that's changed across Caddy versions — safer to state it directly.
+#
+# Proxies to Varnish (deploy/varnish/), not directly to the supervisor — Varnish forwards
+# everything it can't/shouldn't cache straight through to the supervisor's own :11005 as its one
+# backend, so this is a pure insertion, not a change to how any request ultimately gets resolved.
 :443 {
 	tls {
 		on_demand
 	}
-	reverse_proxy localhost:11005
+	reverse_proxy localhost:6081
 }
 
 # Plain HTTP just redirects to HTTPS — Caddy still auto-handles the ACME HTTP-01 challenge path
