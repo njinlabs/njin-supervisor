@@ -11,7 +11,7 @@ import { findDomainByHost, findPrimaryHostForClient } from "../db/repositories/d
 import { getEnvForSlug } from "../db/repositories/env";
 import { handleDashboardRequest } from "../dashboard/router";
 import { HOSTNAME_RE } from "../util/hostname";
-import { discoverClientSlugs, hasClientDir } from "./discovery";
+import { hasClientDir } from "./discovery";
 import type { PendingRequest, SupervisorOptions, WorkerHandle } from "./types";
 
 const CLIENTS_ROOT = env.CLIENTS_ROOT;
@@ -39,14 +39,18 @@ const IDLE_TIMEOUT_SECONDS = Math.ceil((BOOT_TIMEOUT_MS + REQUEST_TIMEOUT_MS) / 
 // connections, and since a crashed worker's memory isn't fully reclaimed either (see the
 // comment below), an unbounded crash loop is also an unbounded, if slow, leak.
 const MAX_CONSECUTIVE_CRASHES = 3;
-// No idle-eviction here on purpose — worker.terminate() leaks memory that's never
-// reclaimed (confirmed against a minimal, dependency-free Worker too, so it's not
-// anything njin/supervisor-specific: https://github.com/oven-sh/bun/issues/5709, still
-// reproducible on Bun 1.3.14). A worker that's never routinely terminated never hits that
-// path — it just stays resident, which is also the more memory-efficient shape here: one
-// process's workers share the same bun.exe binary at the OS level, unlike one full process
-// per tenant. Crash-respawn (onerror below) still calls terminate implicitly via the
-// worker's own death, but that's an exceptional path, not a routine cycle.
+// Idle-eviction: a worker untouched for IDLE_EVICT_MS gets terminated to free its heap.
+// worker.terminate() leaks memory that's never reclaimed (confirmed against a minimal,
+// dependency-free Worker too, so it's not anything njin/supervisor-specific:
+// https://github.com/oven-sh/bun/issues/5709, still reproducible on Bun 1.3.14) — but that
+// leak is a fixed, one-time cost per eviction, not something that keeps growing while the
+// worker sits idle. For a tenant idle long enough, evicting is still the better trade than
+// holding a full resident isolate open indefinitely. The leak itself is covered by
+// deploy/systemd/njin-supervisor-memcheck.sh, which restarts the whole process once RSS
+// crosses its threshold — so idle-eviction and the periodic restart are meant to work
+// together, not as alternatives to each other.
+const IDLE_EVICT_MS = 3 * 60 * 60 * 1000; // 3 hours
+const IDLE_EVICT_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 
 export const startSupervisor = ({ port }: SupervisorOptions) => {
   const workers = new Map<string, WorkerHandle>();
@@ -94,7 +98,7 @@ export const startSupervisor = ({ port }: SupervisorOptions) => {
     // still sees the real rejection whenever it does await this.
     readyPromise.catch(() => {});
 
-    const handle: WorkerHandle = { worker, ready: false, inFlight: 0, readyPromise };
+    const handle: WorkerHandle = { worker, ready: false, inFlight: 0, readyPromise, lastActivity: Date.now() };
 
     worker.onmessage = (event: MessageEvent<WorkerOutboundMessage>) => {
       const msg = event.data;
@@ -169,10 +173,11 @@ export const startSupervisor = ({ port }: SupervisorOptions) => {
     return inflight;
   };
 
-  // Pre-warm every client folder that already exists at startup — purely an optimization
-  // (avoids eating the boot latency on each one's first real request); anything dropped into
-  // clients/ afterward still works, just spawns lazily on its own first request instead.
-  for (const slug of discoverClientSlugs()) workers.set(slug, spawnWorker(slug));
+  // Deliberately no pre-warm loop here — every client, including ones that already existed
+  // at startup, spawns lazily on its own first request (via ensureWorker() in dispatch()).
+  // Combined with idle-eviction below, this means a tenant with no traffic for a while never
+  // holds a resident worker at all, instead of every clients/* directory eating RAM forever
+  // just for existing on disk.
 
   // For the dashboard's "delete client" action — an explicit teardown, not a crash, so this
   // deliberately doesn't go through the crash-respawn path in onerror (removing from `workers`
@@ -187,6 +192,20 @@ export const startSupervisor = ({ port }: SupervisorOptions) => {
     workers.delete(slug);
     handle.worker.terminate();
   };
+
+  // Sweeps every resident worker and evicts the ones that have been idle (no in-flight
+  // request, no dispatch) for longer than IDLE_EVICT_MS. Skips anything with inFlight > 0
+  // or not yet ready — never evict a worker mid-request or mid-boot.
+  const idleEvictSweep = (): void => {
+    const now = Date.now();
+    for (const [slug, handle] of workers) {
+      if (!handle.ready || handle.inFlight > 0) continue;
+      if (now - handle.lastActivity < IDLE_EVICT_MS) continue;
+      console.log(`Evicting idle worker for ${slug} (idle ${Math.round((now - handle.lastActivity) / 60_000)}m)`);
+      evictWorker(slug);
+    }
+  };
+  const idleEvictInterval = setInterval(idleEvictSweep, IDLE_EVICT_CHECK_INTERVAL_MS);
 
   // For POST /api/deploy/:slug once a new build has been materialized into clients/<slug>/ —
   // spawns a fresh worker against the new build and only swaps it into `workers` (the map every
@@ -244,6 +263,7 @@ export const startSupervisor = ({ port }: SupervisorOptions) => {
 
       pending.set(msg.id, { resolve, reject, timer });
       target.inFlight++;
+      target.lastActivity = Date.now();
       target.worker.postMessage(msg, msg.body ? [msg.body] : []);
     });
   };
@@ -319,6 +339,7 @@ export const startSupervisor = ({ port }: SupervisorOptions) => {
   });
 
   const shutdown = async (): Promise<void> => {
+    clearInterval(idleEvictInterval);
     server.stop();
     for (const { worker } of workers.values())
       worker.postMessage({ type: "shutdown" });
