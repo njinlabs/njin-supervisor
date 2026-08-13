@@ -93,6 +93,24 @@ export const addDomain = async (slug: string, host: string): Promise<void> => {
   if (!res.ok) throw new Error(`Failed to add domain: ${res.status}`);
 };
 
+// Server rejects deleting the primary domain (409) — the caller must set a different domain as
+// primary first.
+export const deleteDomain = async (slug: string, host: string): Promise<void> => {
+  const res = await request(
+    `/api/dashboard/clients/${encodeURIComponent(slug)}/domains/${encodeURIComponent(host)}`,
+    { method: "DELETE" },
+  );
+  if (!res.ok) throw new Error(`Failed to delete domain: ${res.status}`);
+};
+
+export const setPrimaryDomain = async (slug: string, host: string): Promise<void> => {
+  const res = await request(
+    `/api/dashboard/clients/${encodeURIComponent(slug)}/domains/${encodeURIComponent(host)}/primary`,
+    { method: "POST" },
+  );
+  if (!res.ok) throw new Error(`Failed to set primary domain: ${res.status}`);
+};
+
 export type DeployListItem = {
   status: string;
   triggeredBy: string;

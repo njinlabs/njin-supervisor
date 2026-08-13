@@ -1,5 +1,14 @@
 import { useEffect, useState } from "preact/hooks";
-import { deleteClient, getClients, logout, UnauthorizedError, type ClientListItem, type CreateClientResult } from "../api";
+import {
+  deleteClient,
+  deleteDomain,
+  getClients,
+  logout,
+  setPrimaryDomain,
+  UnauthorizedError,
+  type ClientListItem,
+  type CreateClientResult,
+} from "../api";
 import { AddClientDialog } from "../components/AddClientDialog";
 import { AddDomainDialog } from "../components/AddDomainDialog";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -17,6 +26,9 @@ export const Clients = ({ onUnauthorized }: { onUnauthorized: () => void }) => {
   const [addDomainSlug, setAddDomainSlug] = useState<string | null>(null);
   const [deploysSlug, setDeploysSlug] = useState<string | null>(null);
   const [envSlug, setEnvSlug] = useState<string | null>(null);
+  // "<slug>:<host>" of the domain action currently in flight, so only that pill shows busy state
+  // and a double-click can't fire a second request.
+  const [busyDomain, setBusyDomain] = useState<string | null>(null);
 
   const load = () =>
     getClients()
@@ -69,6 +81,36 @@ export const Clients = ({ onUnauthorized }: { onUnauthorized: () => void }) => {
       else setError(`Failed to delete "${slug}".`);
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleSetPrimaryDomain = async (slug: string, host: string) => {
+    const key = `${slug}:${host}`;
+    setBusyDomain(key);
+    setError(null);
+    try {
+      await setPrimaryDomain(slug, host);
+      await load();
+    } catch (err) {
+      if (err instanceof UnauthorizedError) onUnauthorized();
+      else setError(`Failed to set "${host}" as primary.`);
+    } finally {
+      setBusyDomain(null);
+    }
+  };
+
+  const handleDeleteDomain = async (slug: string, host: string) => {
+    const key = `${slug}:${host}`;
+    setBusyDomain(key);
+    setError(null);
+    try {
+      await deleteDomain(slug, host);
+      await load();
+    } catch (err) {
+      if (err instanceof UnauthorizedError) onUnauthorized();
+      else setError(`Failed to delete domain "${host}".`);
+    } finally {
+      setBusyDomain(null);
     }
   };
 
@@ -146,11 +188,40 @@ export const Clients = ({ onUnauthorized }: { onUnauthorized: () => void }) => {
                   <td>{client.source}</td>
                   <td>
                     <div class="domain-list">
-                      {client.domains.map((d) => (
-                        <span key={d.host} class={`domain-pill${d.isPrimary ? " primary" : ""}`}>
-                          {d.host}
-                        </span>
-                      ))}
+                      {client.domains.map((d) => {
+                        const key = `${client.slug}:${d.host}`;
+                        const busy = busyDomain === key;
+                        // Deleting the primary (or a client's only domain, which is necessarily
+                        // primary) would leave the client unreachable — the server rejects it
+                        // (409), so the delete action is disabled here rather than round-tripping
+                        // to show that error.
+                        const canDelete = !d.isPrimary;
+                        return (
+                          <span key={d.host} class={`domain-pill${d.isPrimary ? " primary" : ""}`}>
+                            {d.host}
+                            {!d.isPrimary && (
+                              <button
+                                type="button"
+                                class="domain-pill-action"
+                                title="Make primary"
+                                disabled={busy}
+                                onClick={() => handleSetPrimaryDomain(client.slug, d.host)}
+                              >
+                                ★
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              class="domain-pill-action"
+                              title={canDelete ? "Delete domain" : "Cannot delete the primary domain"}
+                              disabled={busy || !canDelete}
+                              onClick={() => handleDeleteDomain(client.slug, d.host)}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        );
+                      })}
                     </div>
                   </td>
                   <td>

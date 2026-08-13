@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { findClientBySlug, listClients, updateDeployTokenHash } from "../db/repositories/clients";
-import { addDomain, findDomainByHost, listDomainsForClient } from "../db/repositories/domains";
+import {
+  addDomain,
+  deleteDomain,
+  findDomainByHost,
+  listDomainsForClient,
+  setPrimaryDomain,
+} from "../db/repositories/domains";
 import { createDeploy, listDeploysForClient, updateDeployStatus } from "../db/repositories/deploys";
 import { deleteEnvVar, listEnvForClient, setEnvVar } from "../db/repositories/env";
 import { hasClientDir } from "../supervisor/discovery";
@@ -201,6 +207,47 @@ export const handleDashboardRequest = async (
 
     addDomain(client.id, host, false);
     return new Response(null, { status: 201 });
+  }
+
+  const clientDomainHostMatch = url.pathname.match(/^\/api\/dashboard\/clients\/([^/]+)\/domains\/([^/]+)$/);
+  if (clientDomainHostMatch && request.method === "DELETE") {
+    const session = getSessionFromRequest(request);
+    if (!session) return new Response("Unauthorized", { status: 401 });
+
+    const slug = decodeURIComponent(clientDomainHostMatch[1]!);
+    const client = findClientBySlug(slug);
+    if (!client) return new Response("Not Found", { status: 404 });
+
+    const host = decodeURIComponent(clientDomainHostMatch[2]!);
+    const domains = listDomainsForClient(client.id);
+    const domain = domains.find((d) => d.host === host);
+    if (!domain) return new Response("Not Found", { status: 404 });
+    // The primary domain is what supervisor.ts actually dispatches to — deleting it (or the
+    // client's only domain, which is necessarily primary) would leave the client unreachable, so
+    // an admin must set a different domain as primary first.
+    if (domain.isPrimary) return new Response("Conflict", { status: 409 });
+
+    deleteDomain(client.id, host);
+    return new Response(null, { status: 204 });
+  }
+
+  const clientDomainPrimaryMatch = url.pathname.match(
+    /^\/api\/dashboard\/clients\/([^/]+)\/domains\/([^/]+)\/primary$/,
+  );
+  if (clientDomainPrimaryMatch && request.method === "POST") {
+    const session = getSessionFromRequest(request);
+    if (!session) return new Response("Unauthorized", { status: 401 });
+
+    const slug = decodeURIComponent(clientDomainPrimaryMatch[1]!);
+    const client = findClientBySlug(slug);
+    if (!client) return new Response("Not Found", { status: 404 });
+
+    const host = decodeURIComponent(clientDomainPrimaryMatch[2]!);
+    const domain = listDomainsForClient(client.id).find((d) => d.host === host);
+    if (!domain) return new Response("Not Found", { status: 404 });
+
+    if (!domain.isPrimary) setPrimaryDomain(client.id, host);
+    return new Response(null, { status: 204 });
   }
 
   const clientEnvMatch = url.pathname.match(/^\/api\/dashboard\/clients\/([^/]+)\/env$/);

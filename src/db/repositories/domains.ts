@@ -61,3 +61,19 @@ export const addDomain = (clientId: number, host: string, isPrimary: boolean): v
 export const deleteDomainsForClient = (clientId: number): void => {
   db.query("DELETE FROM domains WHERE client_id = ?").run(clientId);
 };
+
+// AND is_primary = 0 is defense in depth — the router already rejects deleting a primary domain
+// with a clear 409 before this runs.
+export const deleteDomain = (clientId: number, host: string): void => {
+  db.query("DELETE FROM domains WHERE client_id = ? AND host = ? AND is_primary = 0").run(clientId, host);
+};
+
+// Demote-then-promote in one transaction: idx_domains_one_primary_per_client (partial unique
+// index) would throw if the new host were promoted while the old one is still primary.
+export const setPrimaryDomain = (clientId: number, host: string): void => {
+  const tx = db.transaction(() => {
+    db.query("UPDATE domains SET is_primary = 0 WHERE client_id = ? AND is_primary = 1").run(clientId);
+    db.query("UPDATE domains SET is_primary = 1 WHERE client_id = ? AND host = ?").run(clientId, host);
+  });
+  tx();
+};

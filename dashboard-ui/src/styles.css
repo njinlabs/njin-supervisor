@@ -335,8 +335,11 @@ tbody tr:hover {
 }
 
 .domain-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 0.75rem;
-  padding: 2px 8px;
+  padding: 2px 4px 2px 8px;
   border-radius: 6px;
   background: var(--bg);
   border: 1px solid var(--border);
@@ -346,6 +349,31 @@ tbody tr:hover {
 .domain-pill.primary {
   color: var(--primary);
   border-color: var(--primary);
+}
+
+.domain-pill-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.domain-pill-action:hover:not(:disabled) {
+  background: var(--border);
+}
+
+.domain-pill-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .empty-state,
