@@ -243,20 +243,69 @@ body {
 
 .row-actions {
   display: flex;
-  gap: 8px;
   justify-content: flex-end;
 }
 
-/* Unify button sizing here regardless of variant (.btn-secondary/.btn-danger otherwise carry
-   different padding/font-size) and give every action button the same width — labels ("Env" vs
-   "Add domain") differ enough in length that natural auto-width made the row look ragged. */
-.row-actions .btn {
-  width: 96px;
-  flex-shrink: 0;
-  padding: 6px 8px;
+.actions-menu {
+  position: relative;
+}
+
+.actions-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.actions-menu-trigger:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+.actions-menu-dropdown {
+  position: fixed;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  padding: 4px;
+  z-index: 10;
+  animation: dialog-fade-in 0.1s ease-out;
+}
+
+.actions-menu-item {
+  font: inherit;
   font-size: 0.8125rem;
-  text-align: center;
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
   white-space: nowrap;
+}
+
+.actions-menu-item:hover {
+  background: var(--bg);
+}
+
+.actions-menu-item.danger {
+  color: var(--danger-text);
+}
+
+.actions-menu-item.danger:hover {
+  background: var(--danger-bg);
 }
 
 .alert-notice {
@@ -420,6 +469,33 @@ tbody tr:hover {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.8125rem;
   word-break: break-all;
+}
+
+.dns-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.dns-table {
+  font-size: 0.8125rem;
+}
+
+.dns-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+}
+
+.dns-cell-name,
+.dns-cell-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  word-break: break-all;
+}
+
+.dns-cell-name {
+  white-space: nowrap;
 }
 
 .env-copy-row {

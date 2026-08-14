@@ -83,5 +83,20 @@ export const ensureSchema = (): void => {
       state TEXT PRIMARY KEY,
       created_at TEXT NOT NULL
     );
+
+    -- One row per client domain that's had email hosting enabled via Stalwart (see
+    -- src/mail/stalwart.ts). stalwart_domain_id is the Domain object's id in Stalwart, kept so a
+    -- later refresh can re-fetch dnsZoneFile (e.g. after DKIM key rotation) without re-deriving
+    -- the id from a name query. dns_zone_file is a snapshot from the last create/refresh call —
+    -- the DNS instructions shown to the tenant in the dashboard.
+    CREATE TABLE IF NOT EXISTS mail_domains (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL REFERENCES clients(id),
+      domain TEXT UNIQUE NOT NULL,
+      stalwart_domain_id TEXT NOT NULL,
+      dns_zone_file TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 };

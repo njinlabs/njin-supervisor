@@ -46,6 +46,15 @@ const schema = z
     GH_APP_CLIENT_ID: z.string().optional(),
     GH_APP_CLIENT_SECRET: z.string().optional(),
     GH_APP_SLUG: z.string().optional(),
+    // Mail hosting (Stalwart) — all optional but all-or-nothing (see the refine below). Unset ->
+    // boot still succeeds, the dashboard's "Enable Email" endpoints just return 503. STALWART_URL
+    // is the Management API base (e.g. http://127.0.0.1:8080), STALWART_API_KEY the single shared
+    // admin API key used for every tenant (see src/mail/stalwart.ts and CLAUDE.md's mail-hosting
+    // notes for the deliberate single-shared-key tradeoff), STALWART_MAIL_HOSTNAME the one MX
+    // target every tenant domain shares (mail sharing means no new A record/cert per tenant).
+    STALWART_URL: z.string().optional(),
+    STALWART_API_KEY: z.string().optional(),
+    STALWART_MAIL_HOSTNAME: z.string().optional(),
   })
   // Seeding a broken admin (email with no password, or vice versa) should fail loudly at boot,
   // not silently no-op — see seedAdminIfNeeded() in dashboard/auth.ts.
@@ -63,6 +72,17 @@ const schema = z
       message:
         "GH_APP_ID, GH_APP_PRIVATE_KEY, GH_APP_CLIENT_ID, GH_APP_CLIENT_SECRET and GH_APP_SLUG must all be set together, or all be unset",
       path: ["GH_APP_ID"],
+    },
+  )
+  .refine(
+    (v) => {
+      const fields = [v.STALWART_URL, v.STALWART_API_KEY, v.STALWART_MAIL_HOSTNAME];
+      const setCount = fields.filter(Boolean).length;
+      return setCount === 0 || setCount === fields.length;
+    },
+    {
+      message: "STALWART_URL, STALWART_API_KEY and STALWART_MAIL_HOSTNAME must all be set together, or all be unset",
+      path: ["STALWART_URL"],
     },
   );
 

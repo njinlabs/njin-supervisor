@@ -4,9 +4,11 @@ import {
   addDomain,
   deleteDomain,
   findDomainByHost,
+  findPrimaryHostForClient,
   listDomainsForClient,
   setPrimaryDomain,
 } from "../db/repositories/domains";
+import { findMailDomainForClient, upsertMailDomain } from "../db/repositories/mailDomains";
 import { createDeploy, listDeploysForClient, updateDeployStatus } from "../db/repositories/deploys";
 import { deleteEnvVar, listEnvForClient, setEnvVar } from "../db/repositories/env";
 import { hasClientDir } from "../supervisor/discovery";
@@ -31,6 +33,8 @@ import { commitWorkflowFile, setDeploySecret } from "../github/workflow";
 import { generateDeployToken, hashDeployToken, verifyDeployToken } from "../deploy/upload";
 import { materializeBuild } from "../deploy/materialize";
 import { HOSTNAME_RE } from "../util/hostname";
+import { createDomain as createMailDomain, isMailConfigured, refreshDnsZoneFile } from "../mail/stalwart";
+import { env } from "../env";
 
 const loginBodySchema = z.object({ email: z.string(), password: z.string() });
 
@@ -55,6 +59,7 @@ const withSetCookies = (response: Response, headers: string[]): Response => {
 };
 
 const githubUnavailable = (): Response => Response.json({ error: "GitHub App not configured" }, { status: 503 });
+const mailUnavailable = (): Response => Response.json({ error: "Mail hosting is not configured" }, { status: 503 });
 
 // Response.redirect() resolves its target against a base URL per the Fetch spec — there's no
 // implicit "document" base on the server, so every redirect target here is resolved against the
@@ -348,6 +353,84 @@ export const handleDashboardRequest = async (
     }
 
     return Response.json({ workflowInjected: true });
+  }
+
+  const clientMailMatch = url.pathname.match(/^\/api\/dashboard\/clients\/([^/]+)\/mail$/);
+  if (clientMailMatch && request.method === "GET") {
+    const session = getSessionFromRequest(request);
+    if (!session) return new Response("Unauthorized", { status: 401 });
+
+    const slug = decodeURIComponent(clientMailMatch[1]!);
+    const client = findClientBySlug(slug);
+    if (!client) return new Response("Not Found", { status: 404 });
+
+    const mailDomain = findMailDomainForClient(client.id);
+    return Response.json({
+      configured: isMailConfigured(),
+      enabled: Boolean(mailDomain),
+      domain: mailDomain?.domain ?? null,
+      dnsZoneFile: mailDomain?.dns_zone_file ?? null,
+      mailHostname: env.STALWART_MAIL_HOSTNAME ?? null,
+    });
+  }
+
+  const clientMailEnableMatch = url.pathname.match(/^\/api\/dashboard\/clients\/([^/]+)\/mail\/enable$/);
+  if (clientMailEnableMatch && request.method === "POST") {
+    const session = getSessionFromRequest(request);
+    if (!session) return new Response("Unauthorized", { status: 401 });
+    if (!isMailConfigured()) return mailUnavailable();
+
+    const slug = decodeURIComponent(clientMailEnableMatch[1]!);
+    const client = findClientBySlug(slug);
+    if (!client) return new Response("Not Found", { status: 404 });
+
+    const primaryHost = findPrimaryHostForClient(client.id);
+    if (!primaryHost) return Response.json({ error: "Client has no primary domain" }, { status: 400 });
+
+    let result;
+    try {
+      result = await createMailDomain(primaryHost);
+    } catch (error) {
+      return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 502 });
+    }
+
+    upsertMailDomain(client.id, primaryHost, result.stalwartDomainId, result.dnsZoneFile);
+    // The tenant's njin worker calls Stalwart's Management API directly using this shared key
+    // (see CLAUDE.md's mail-hosting notes) — set only now, at enable time, not for every client
+    // unconditionally, since a client with email disabled has no use for it.
+    setEnvVar(client.id, "STALWART_URL", env.STALWART_URL!);
+    setEnvVar(client.id, "STALWART_API_KEY", env.STALWART_API_KEY!);
+    deps.evictWorker(slug);
+
+    return Response.json({
+      domain: primaryHost,
+      dnsZoneFile: result.dnsZoneFile,
+      mailHostname: env.STALWART_MAIL_HOSTNAME,
+    });
+  }
+
+  const clientMailRefreshMatch = url.pathname.match(/^\/api\/dashboard\/clients\/([^/]+)\/mail\/refresh$/);
+  if (clientMailRefreshMatch && request.method === "POST") {
+    const session = getSessionFromRequest(request);
+    if (!session) return new Response("Unauthorized", { status: 401 });
+    if (!isMailConfigured()) return mailUnavailable();
+
+    const slug = decodeURIComponent(clientMailRefreshMatch[1]!);
+    const client = findClientBySlug(slug);
+    if (!client) return new Response("Not Found", { status: 404 });
+
+    const mailDomain = findMailDomainForClient(client.id);
+    if (!mailDomain) return Response.json({ error: "Email is not enabled for this client" }, { status: 400 });
+
+    let dnsZoneFile: string;
+    try {
+      dnsZoneFile = await refreshDnsZoneFile(mailDomain.stalwart_domain_id);
+    } catch (error) {
+      return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 502 });
+    }
+
+    upsertMailDomain(client.id, mailDomain.domain, mailDomain.stalwart_domain_id, dnsZoneFile);
+    return Response.json({ domain: mailDomain.domain, dnsZoneFile, mailHostname: env.STALWART_MAIL_HOSTNAME });
   }
 
   if (url.pathname === "/api/dashboard/github/install-url" && request.method === "GET") {

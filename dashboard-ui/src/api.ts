@@ -166,4 +166,37 @@ export const deleteEnv = async (slug: string, key: string): Promise<void> => {
   if (!res.ok) throw new Error(`Failed to delete env var: ${res.status}`);
 };
 
+export type MailStatus = {
+  configured: boolean;
+  enabled: boolean;
+  domain: string | null;
+  dnsZoneFile: string | null;
+  mailHostname: string | null;
+};
+
+export const getMailStatus = async (slug: string): Promise<MailStatus> => {
+  const res = await request(`/api/dashboard/clients/${encodeURIComponent(slug)}/mail`);
+  if (!res.ok) throw new Error(`Failed to load mail status: ${res.status}`);
+  return (await res.json()) as MailStatus;
+};
+
+export type EnableMailResult = { domain: string; dnsZoneFile: string; mailHostname: string | null };
+
+// Registers the client's primary domain in Stalwart and injects STALWART_URL/STALWART_API_KEY
+// into that client's env (evicting its worker so the next request respawns with them applied) —
+// see POST /api/dashboard/clients/:slug/mail/enable in src/dashboard/router.ts.
+export const enableMail = async (slug: string): Promise<EnableMailResult> => {
+  const res = await request(`/api/dashboard/clients/${encodeURIComponent(slug)}/mail/enable`, { method: "POST" });
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new Error((body as { error?: string })?.error ?? `Failed to enable email: ${res.status}`);
+  return body as EnableMailResult;
+};
+
+export const refreshMail = async (slug: string): Promise<EnableMailResult> => {
+  const res = await request(`/api/dashboard/clients/${encodeURIComponent(slug)}/mail/refresh`, { method: "POST" });
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new Error((body as { error?: string })?.error ?? `Failed to refresh DNS records: ${res.status}`);
+  return body as EnableMailResult;
+};
+
 export { UnauthorizedError };

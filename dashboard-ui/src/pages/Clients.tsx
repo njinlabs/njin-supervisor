@@ -9,11 +9,13 @@ import {
   type ClientListItem,
   type CreateClientResult,
 } from "../api";
+import { ActionsMenu } from "../components/ActionsMenu";
 import { AddClientDialog } from "../components/AddClientDialog";
 import { AddDomainDialog } from "../components/AddDomainDialog";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DeployHistoryDialog } from "../components/DeployHistoryDialog";
 import { EnvDialog } from "../components/EnvDialog";
+import { MailDialog } from "../components/MailDialog";
 
 export const Clients = ({ onUnauthorized }: { onUnauthorized: () => void }) => {
   const [clients, setClients] = useState<ClientListItem[] | null>(null);
@@ -26,6 +28,7 @@ export const Clients = ({ onUnauthorized }: { onUnauthorized: () => void }) => {
   const [addDomainSlug, setAddDomainSlug] = useState<string | null>(null);
   const [deploysSlug, setDeploysSlug] = useState<string | null>(null);
   const [envSlug, setEnvSlug] = useState<string | null>(null);
+  const [mailSlug, setMailSlug] = useState<string | null>(null);
   // "<slug>:<host>" of the domain action currently in flight, so only that pill shows busy state
   // and a double-click can't fire a second request.
   const [busyDomain, setBusyDomain] = useState<string | null>(null);
@@ -226,20 +229,17 @@ export const Clients = ({ onUnauthorized }: { onUnauthorized: () => void }) => {
                   </td>
                   <td>
                     <div class="row-actions">
-                      {client.source === "github" && (
-                        <button class="btn btn-secondary" type="button" onClick={() => setDeploysSlug(client.slug)}>
-                          Deploys
-                        </button>
-                      )}
-                      <button class="btn btn-secondary" type="button" onClick={() => setEnvSlug(client.slug)}>
-                        Env
-                      </button>
-                      <button class="btn btn-secondary" type="button" onClick={() => setAddDomainSlug(client.slug)}>
-                        Add domain
-                      </button>
-                      <button class="btn btn-danger" type="button" onClick={() => setPendingDelete(client)}>
-                        Delete
-                      </button>
+                      <ActionsMenu
+                        items={[
+                          ...(client.source === "github"
+                            ? [{ label: "Deploys", onClick: () => setDeploysSlug(client.slug) }]
+                            : []),
+                          { label: "Env", onClick: () => setEnvSlug(client.slug) },
+                          { label: "Email", onClick: () => setMailSlug(client.slug) },
+                          { label: "Add domain", onClick: () => setAddDomainSlug(client.slug) },
+                          { label: "Delete", onClick: () => setPendingDelete(client), danger: true },
+                        ]}
+                      />
                     </div>
                   </td>
                 </tr>
@@ -293,6 +293,8 @@ export const Clients = ({ onUnauthorized }: { onUnauthorized: () => void }) => {
         onClose={() => setEnvSlug(null)}
         onUnauthorized={onUnauthorized}
       />
+
+      <MailDialog slug={mailSlug} onClose={() => setMailSlug(null)} onUnauthorized={onUnauthorized} />
     </div>
   );
 };
