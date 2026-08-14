@@ -8,6 +8,15 @@ export type DnsZoneRecord = { name: string; type: string; value: string };
 //   )
 // Collapsing everything inside a `(...)` span onto one line first means every record then becomes
 // exactly one line, however many lines it started as.
+// A TXT record's RDATA is one or more quoted <character-string>s; verifiers (and DNS panels with
+// a single flat "value" field) treat them as one value formed by concatenating the strings with
+// no separator — the quotes and the line-wrapping are just zone-file notation for values over
+// 255 bytes (e.g. an RSA DKIM key), not part of the value itself.
+const unquoteTxtValue = (raw: string): string => {
+  const strings = [...raw.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]!.replace(/\\"/g, '"'));
+  return strings.length > 0 ? strings.join("") : raw;
+};
+
 export const parseDnsZoneFile = (zoneFile: string): DnsZoneRecord[] => {
   const collapsed = zoneFile.replace(/\(([^)]*)\)/gs, (_, inner) => inner.replace(/\s+/g, " ").trim());
 
@@ -19,6 +28,6 @@ export const parseDnsZoneFile = (zoneFile: string): DnsZoneRecord[] => {
       const match = line.match(/^(\S+?)\.?\s+IN\s+(\S+)\s+(.*)$/);
       if (!match) return { name: line, type: "", value: "" };
       const [, name, type, value] = match;
-      return { name: name!, type: type!, value: value!.trim() };
+      return { name: name!, type: type!, value: type === "TXT" ? unquoteTxtValue(value!.trim()) : value!.trim() };
     });
 };
