@@ -400,6 +400,7 @@ export const handleDashboardRequest = async (
     // unconditionally, since a client with email disabled has no use for it.
     setEnvVar(client.id, "STALWART_URL", env.STALWART_URL!);
     setEnvVar(client.id, "STALWART_API_KEY", env.STALWART_API_KEY!);
+    setEnvVar(client.id, "STALWART_DOMAIN", primaryHost);
     deps.evictWorker(slug);
 
     return Response.json({

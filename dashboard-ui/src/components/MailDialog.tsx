@@ -95,8 +95,8 @@ export const MailDialog = ({ slug, onClose, onUnauthorized }: MailDialogProps) =
         {status && status.configured && !status.enabled && (
           <p>
             Email is not enabled for this client yet. Enabling registers its primary domain with the shared Stalwart
-            mail server and injects <code>STALWART_URL</code>/<code>STALWART_API_KEY</code> into its env so the
-            tenant's own admin panel can create mailboxes.
+            mail server and injects <code>STALWART_URL</code>/<code>STALWART_API_KEY</code>/<code>STALWART_DOMAIN</code>
+            into its env so the tenant's own admin panel can create mailboxes.
           </p>
         )}
 

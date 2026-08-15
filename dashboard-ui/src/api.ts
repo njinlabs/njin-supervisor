@@ -182,8 +182,8 @@ export const getMailStatus = async (slug: string): Promise<MailStatus> => {
 
 export type EnableMailResult = { domain: string; dnsZoneFile: string; mailHostname: string | null };
 
-// Registers the client's primary domain in Stalwart and injects STALWART_URL/STALWART_API_KEY
-// into that client's env (evicting its worker so the next request respawns with them applied) —
+// Registers the client's primary domain in Stalwart and injects STALWART_URL/STALWART_API_KEY/
+// STALWART_DOMAIN into that client's env (evicting its worker so the next request respawns with them applied) —
 // see POST /api/dashboard/clients/:slug/mail/enable in src/dashboard/router.ts.
 export const enableMail = async (slug: string): Promise<EnableMailResult> => {
   const res = await request(`/api/dashboard/clients/${encodeURIComponent(slug)}/mail/enable`, { method: "POST" });
