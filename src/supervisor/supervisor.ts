@@ -74,6 +74,7 @@ export const startSupervisor = ({ port }: SupervisorOptions) => {
   const brokenSlugs = new Set<string>();
 
   const spawnWorker = (slug: string): WorkerHandle => {
+    const spawnStartedAt = performance.now();
     console.log("Spawning", slug);
 
     // A worker's env comes ENTIRELY from its own client_env rows (see db/repositories/env.ts)
@@ -105,7 +106,7 @@ export const startSupervisor = ({ port }: SupervisorOptions) => {
       const msg = event.data;
 
       if (msg.type === "ready") {
-        console.log("READY", slug);
+        console.log("READY", slug, `${(performance.now() - spawnStartedAt).toFixed(1)}ms`);
         handle.ready = true;
         crashCounts.delete(slug);
         resolveReady();
