@@ -17,7 +17,7 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@njinlabs/njin": "^0.7.0",
+    "@njinlabs/njin": "^0.10.0",
     "@surrealdb/node": "^3.0.3",
     "geoip-lite": "^2.0.3",
     "libsodium-wrappers": "^0.8.4",
